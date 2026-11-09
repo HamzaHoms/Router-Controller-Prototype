@@ -1,3 +1,6 @@
 [submodule "Utils"]
 	path = Utils
 	url = https://github.com/HamzaHoms/Utils.git
+[submodule "UART-Driver-Basic"]
+	path = UART-Driver-Basic
+	url = https://github.com/HamzaHoms/UART-Driver-Basic.git
