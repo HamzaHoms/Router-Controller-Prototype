@@ -4,3 +4,6 @@
 [submodule "UART-Driver-Basic"]
 	path = UART-Driver-Basic
 	url = https://github.com/HamzaHoms/UART-Driver-Basic.git
+[submodule "SX1268-Driver"]
+	path = SX1268-Driver
+	url = https://github.com/HamzaHoms/SX1268-Driver.git
