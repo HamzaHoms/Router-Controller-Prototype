@@ -129,28 +129,7 @@ int main(void)
 
   wUART_Init(&wuart3, &huart3);
 
-  SX1268_Status rf_sts;
-
-  char err[7] = "ERROR!";
-  char to[9] = "TIMEOUT!";
-  char nl = '\n';
-
-  rf_sts = SX68_Init(&radio, &hspi2, cs_gpio, res_gpio, bind_gpio);
-
-  if(rf_sts != SX1268_OK)
-    {
-      while(1)
-	{
-	  uint8_t cmd_sts = radio.CONTROL._cmd_sts + '0';
-	  HAL_GPIO_TogglePin(R_LED_GPIO_Port, R_LED_Pin);
-	  HAL_Delay(500);
-	  HAL_GPIO_TogglePin(R_LED_GPIO_Port, R_LED_Pin);
-	  HAL_Delay(500);
-	  if(rf_sts == SX1268_ERROR) wUART_WriteTX(&wuart3,  (uint8_t*)err, 6);
-	  else if(rf_sts == SX1268_CMD_TIMEOUT) wUART_WriteTX(&wuart3,  (uint8_t*)to, 8);
-	  wUART_WriteTX(&wuart3, &(cmd_sts), 1);
-	}
-    }
+  SX68_Init(&radio, &hspi2, cs_gpio, res_gpio, bind_gpio);
 
   SX68_SetStandby(&radio, MODE_STDBY_RC);
 
@@ -166,16 +145,9 @@ int main(void)
   SX68_LoRa_PayloadLength(&radio, 16);
   SX68_SetTXParameters(&radio, 20, RAMP_200U);
 
-  char dummy[17] = "0123456789ABCDEF";
-  char success[15] = "Great Success!";
-  char failure[15] = "Great Failure!";
-
   SX68_WriteTXPacket(&radio, (uint8_t*)dummy, 16);
   SX68_ClearIRQStatus(&radio);
 
-  HAL_Delay(50);
-
-  uint32_t tick1 = HAL_GetTick();
   SX68_Transmit(&radio, 0);
   /* USER CODE END 2 */
 
@@ -183,28 +155,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      if(HAL_GetTick() - tick1 > 10000)
-	{
-	  tick1 = HAL_GetTick();
-	  SX68_Transmit(&radio, 0);
-	}
-
-      HAL_Delay(10);
-      if(SX68_GetDIOStatus(&radio, DIO1) == 1)
-	{
-	  SX68_GetIRQStatus(&radio);
-	  SX68_ClearDIOStatus(&radio, DIO1);
-	  SX68_ClearIRQStatus(&radio);
-
-	  if((radio.IRQ._irq_flags & IRQ_TXDONE) > 0)
-	    {
-	      wUART_WriteTX(&wuart3,  (uint8_t*)success, 14);
-	    }
-	  else if((radio.IRQ._irq_flags & IRQ_TIMEOUT) > 0)
-	    {
-	      wUART_WriteTX(&wuart3,  (uint8_t*)failure, 14);
-	    }
-	}
 
     /* USER CODE END WHILE */
 
