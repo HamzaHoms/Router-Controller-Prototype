@@ -145,10 +145,8 @@ int main(void)
   SX68_LoRa_PayloadLength(&radio, 16);
   SX68_SetTXParameters(&radio, 20, RAMP_200U);
 
-  SX68_WriteTXPacket(&radio, (uint8_t*)dummy, 16);
   SX68_ClearIRQStatus(&radio);
 
-  SX68_Transmit(&radio, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
