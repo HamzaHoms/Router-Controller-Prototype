@@ -47,6 +47,9 @@ SPI_HandleTypeDef hspi2;
 DMA_HandleTypeDef hdma_spi2_tx;
 DMA_HandleTypeDef hdma_spi2_rx;
 
+TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim3;
+
 UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart3_rx;
 DMA_HandleTypeDef hdma_usart3_tx;
@@ -63,7 +66,24 @@ static void MX_DMA_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
+static void MX_TIM2_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
+
+
+uint32_t Get_us_Tickval(void)
+{
+    uint16_t high1, high2, low;
+
+    do {
+        high1 = htim3.Instance->CNT;
+        low   = htim2.Instance->CNT;
+        high2 = htim3.Instance->CNT;
+    } while (high1 != high2);
+
+    return ((uint32_t)high1 << 16) | low;
+}
+
 
 /* USER CODE END PFP */
 
@@ -105,6 +125,8 @@ int main(void)
   MX_I2C1_Init();
   MX_USART3_UART_Init();
   MX_SPI2_Init();
+  MX_TIM2_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   GPIO_t cs_gpio = {
@@ -139,13 +161,24 @@ int main(void)
 
   SX68_SetOPType(&radio, TYPE_LoRa);
   SX68_ConfigRF(&radio, 433000000, PA_DC_4, PA_HPmax_6);
-  SX68_LoRa_ModConfig(&radio, LoRa_SF12, LoRa_BW_125, LoRa_CR_4_5);
+  SX68_LoRa_ModConfig(&radio, LoRa_SF7, LoRa_BW_250, LoRa_CR_4_5);
   SX68_SetBufferBase(&radio, 0, 128);
-  SX68_LoRa_Params(&radio, 128, LoRa_VariableLenHeader, LoRa_CRC_OFF, LoRa_IQ_Standard);
-  SX68_LoRa_PayloadLength(&radio, 16);
-  SX68_SetTXParameters(&radio, 20, RAMP_200U);
+  SX68_LoRa_Params(&radio, 8, LoRa_VariableLenHeader, LoRa_CRC_OFF, LoRa_IQ_Standard);
+  SX68_SetTXParameters(&radio, 0, RAMP_200U);
 
   SX68_ClearIRQStatus(&radio);
+
+  wUART_OpenRXDMA(&wuart3);
+
+  uint8_t num_buf[64];
+  uint8_t pckt_cnt = 0;
+  uint32_t num = 0;
+  uint32_t num_rec;
+  uint32_t errs = 0;
+  uint32_t trans_timestamp[1024];
+  uint32_t err_timestamp[1024];
+  uint32_t in_trans = 0;
+  uint32_t in_err = 0;
 
   /* USER CODE END 2 */
 
@@ -153,11 +186,51 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+      while(FIFO_GetCount(&wuart3._rx_fifo) == 0)
+	{
+	  __NOP();
+	}
+
+      uint32_t us_tick = Get_us_Tickval();
+
+      pckt_cnt = wUART_ReadRXFIFO(&wuart3, num_buf, 64);
+
+      SX68_WriteTXPacket(&radio, num_buf, pckt_cnt);
+
+      SX68_LoRa_PayloadLength(&radio, pckt_cnt);
+
+      SX68_Transmit(&radio, 0);
+
+      while(SX68_GetDIOStatus(&radio, DIO1) != 1)
+	{
+	  __NOP();
+	}
+
+      memcpy(&num_rec, num_buf, 4);
+
+      if(num_rec != num)
+	{
+	  errs+= (num_rec - num);
+	  err_timestamp[in_err] = us_tick;
+	  in_err++;
+	}
+
+      num = num_rec + 1;
+      trans_timestamp[in_trans] = us_tick;
+      in_trans++;
+
+      if(in_trans == 1024) break;
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
+
+  while(1)
+    {
+
+    }
+
   /* USER CODE END 3 */
 }
 
@@ -268,6 +341,97 @@ static void MX_SPI2_Init(void)
   /* USER CODE BEGIN SPI2_Init 2 */
 
   /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 71;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+
+}
+
+/**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_SlaveConfigTypeDef sSlaveConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sSlaveConfig.SlaveMode = TIM_SLAVEMODE_EXTERNAL1;
+  sSlaveConfig.InputTrigger = TIM_TS_ITR1;
+  if (HAL_TIM_SlaveConfigSynchro(&htim3, &sSlaveConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
 
 }
 
