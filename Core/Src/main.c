@@ -175,10 +175,16 @@ int main(void)
   uint32_t num = 0;
   uint32_t num_rec;
   uint32_t errs = 0;
-  uint32_t trans_timestamp[1024];
-  uint32_t err_timestamp[1024];
+  static uint32_t trans_timestamp[1024];
+  static uint32_t err_timestamp[1024];
   uint32_t in_trans = 0;
   uint32_t in_err = 0;
+
+  memset(trans_timestamp, 0, 1024 * sizeof(uint32_t));
+  memset(err_timestamp, 0, 1024 * sizeof(uint32_t));
+
+  HAL_TIM_Base_Start(&htim3);
+  HAL_TIM_Base_Start(&htim2);
 
   /* USER CODE END 2 */
 
@@ -206,6 +212,9 @@ int main(void)
 	  __NOP();
 	}
 
+      SX68_ClearDIOStatus(&radio, DIO1);
+      SX68_ClearIRQStatus(&radio);
+
       memcpy(&num_rec, num_buf, 4);
 
       if(num_rec != num)
@@ -228,6 +237,31 @@ int main(void)
 
   while(1)
     {
+      while(FIFO_GetCount(&wuart3._rx_fifo) == 0)
+	{
+	  __NOP();
+	}
+
+      pckt_cnt = wUART_ReadRXFIFO(&wuart3, num_buf, 64);
+      memcpy(&num_rec, num_buf, 4);
+
+      if(num_rec != 0xFFFFFFFF) continue;
+
+      wUART_WriteTX(&wuart3, (uint8_t*)&errs, 4);
+
+      for(int i = 0; i < 4; i++)
+	{
+	  wUART_WriteTX(&wuart3, (uint8_t*)trans_timestamp + i*256, 256);
+	  HAL_Delay(250);
+	}
+
+      for(int i = 0; i < 4; i++)
+	{
+	  wUART_WriteTX(&wuart3, (uint8_t*)err_timestamp + i*256, 256);
+	  HAL_Delay(250);
+	}
+
+      wUART_WriteTX(&wuart3, (uint8_t*)&num_rec, 4);
 
     }
 
