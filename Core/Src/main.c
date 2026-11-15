@@ -260,9 +260,6 @@ int main(void)
 	  wUART_WriteTX(&wuart3, (uint8_t*)err_timestamp + i*256, 256);
 	  HAL_Delay(250);
 	}
-
-      wUART_WriteTX(&wuart3, (uint8_t*)&num_rec, 4);
-
     }
 
   /* USER CODE END 3 */
