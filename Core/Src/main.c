@@ -242,20 +242,20 @@ int main(void)
 	  __NOP();
 	}
 
-      pckt_cnt = wUART_ReadRXFIFO(&wuart3, num_buf, 64);
+      wUART_ReadRXFIFO(&wuart3, num_buf, 64);
       memcpy(&num_rec, num_buf, 4);
 
       if(num_rec != 0xFFFFFFFF) continue;
 
       wUART_WriteTX(&wuart3, (uint8_t*)&errs, 4);
 
-      for(int i = 0; i < 4; i++)
+      for(int i = 0; i < 16; i++)
 	{
 	  wUART_WriteTX(&wuart3, (uint8_t*)trans_timestamp + i*256, 256);
 	  HAL_Delay(250);
 	}
 
-      for(int i = 0; i < 4; i++)
+      for(int i = 0; i < 16; i++)
 	{
 	  wUART_WriteTX(&wuart3, (uint8_t*)err_timestamp + i*256, 256);
 	  HAL_Delay(250);
