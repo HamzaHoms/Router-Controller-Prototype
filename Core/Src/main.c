@@ -192,14 +192,16 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      while(FIFO_GetCount(&wuart3._rx_fifo) == 0)
+      while(FIFO_GetCount(&wuart3._rx_fifo) < 4)
 	{
 	  __NOP();
 	}
 
+      HAL_GPIO_TogglePin(R_LED_GPIO_Port, R_LED_Pin);
+
       uint32_t us_tick = Get_us_Tickval();
 
-      pckt_cnt = wUART_ReadRXFIFO(&wuart3, num_buf, 64);
+      pckt_cnt = wUART_ReadRXFIFO(&wuart3, num_buf, 4);
 
       SX68_WriteTXPacket(&radio, num_buf, pckt_cnt);
 
@@ -217,9 +219,11 @@ int main(void)
 
       memcpy(&num_rec, num_buf, 4);
 
+      if(num_rec == 0xFFFFFFFF) break;
+
       if(num_rec != num)
 	{
-	  errs+= (num_rec - num);
+	  errs++;
 	  err_timestamp[in_err] = us_tick;
 	  in_err++;
 	}
@@ -235,33 +239,19 @@ int main(void)
     /* USER CODE BEGIN 3 */
   }
 
-  while(1)
+  wUART_WriteTX(&wuart3, (uint8_t*)&errs, 4);
+
+  for(int i = 0; i < 16; i++)
     {
-      while(FIFO_GetCount(&wuart3._rx_fifo) == 0)
-	{
-	  __NOP();
-	}
-
-      wUART_ReadRXFIFO(&wuart3, num_buf, 64);
-      memcpy(&num_rec, num_buf, 4);
-
-      if(num_rec != 0xFFFFFFFF) continue;
-
-      wUART_WriteTX(&wuart3, (uint8_t*)&errs, 4);
-
-      for(int i = 0; i < 16; i++)
-	{
-	  wUART_WriteTX(&wuart3, (uint8_t*)trans_timestamp + i*256, 256);
-	  HAL_Delay(250);
-	}
-
-      for(int i = 0; i < 16; i++)
-	{
-	  wUART_WriteTX(&wuart3, (uint8_t*)err_timestamp + i*256, 256);
-	  HAL_Delay(250);
-	}
+      wUART_WriteTX(&wuart3, (uint8_t*)trans_timestamp + i*256, 256);
+      HAL_Delay(250);
     }
 
+  for(int i = 0; i < 16; i++)
+    {
+      wUART_WriteTX(&wuart3, (uint8_t*)err_timestamp + i*256, 256);
+      HAL_Delay(250);
+    }
   /* USER CODE END 3 */
 }
 
