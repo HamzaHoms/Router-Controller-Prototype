@@ -156,7 +156,7 @@ int main(void)
   SX68_SetStandby(&radio, MODE_STDBY_RC);
 
   SX68_SetDIO2RFSwitch(&radio, 1);
-  SX68_SetIRQMask(&radio, 0x0201, 0x0000, 0x0000);
+  SX68_SetIRQMask(&radio, 0x0002, 0x0000, 0x0000);
   SX68_SetDIOxGPIO(&radio, DIO1, dio1_gpio);
 
   SX68_SetOPType(&radio, TYPE_LoRa);
@@ -183,6 +183,8 @@ int main(void)
   memset(trans_timestamp, 0, 1024 * sizeof(uint32_t));
   memset(err_timestamp, 0, 1024 * sizeof(uint32_t));
 
+  SX68_BeginRX(&radio, 0xFFFFFFFF);
+
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_Base_Start(&htim2);
 
@@ -192,30 +194,20 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      while(FIFO_GetCount(&wuart3._rx_fifo) < 4)
-	{
-	  __NOP();
-	}
-
-      HAL_GPIO_TogglePin(R_LED_GPIO_Port, R_LED_Pin);
-
-      uint32_t us_tick = Get_us_Tickval();
-
-      pckt_cnt = wUART_ReadRXFIFO(&wuart3, num_buf, 4);
-
-      SX68_WriteTXPacket(&radio, num_buf, pckt_cnt);
-
-      SX68_LoRa_PayloadLength(&radio, pckt_cnt);
-
-      SX68_Transmit(&radio, 0);
-
       while(SX68_GetDIOStatus(&radio, DIO1) != 1)
 	{
 	  __NOP();
 	}
 
+      uint32_t us_tick = Get_us_Tickval();
+
       SX68_ClearDIOStatus(&radio, DIO1);
       SX68_ClearIRQStatus(&radio);
+
+      SX68_ReadRXPacket(&radio);
+      SX68_GetPacket(&radio, num_buf, 64);
+
+      wUART_WriteTX(&wuart3, num_buf, radio.DATA._rx_pckt_size);
 
       memcpy(&num_rec, num_buf, 4);
 
@@ -231,7 +223,6 @@ int main(void)
       num = num_rec + 1;
       trans_timestamp[in_trans] = us_tick;
       in_trans++;
-
       if(in_trans == 1024) break;
 
     /* USER CODE END WHILE */
