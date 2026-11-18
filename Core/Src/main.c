@@ -164,7 +164,7 @@ int main(void)
   SX68_LoRa_ModConfig(&radio, LoRa_SF7, LoRa_BW_250, LoRa_CR_4_5);
   SX68_SetBufferBase(&radio, 0, 128);
   SX68_LoRa_Params(&radio, 8, LoRa_VariableLenHeader, LoRa_CRC_OFF, LoRa_IQ_Standard);
-  SX68_SetTXParameters(&radio, 0, RAMP_200U);
+  SX68_SetTXParameters(&radio, -9, RAMP_200U);
 
   SX68_ClearIRQStatus(&radio);
 
