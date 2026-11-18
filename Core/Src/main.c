@@ -156,7 +156,7 @@ int main(void)
   SX68_SetStandby(&radio, MODE_STDBY_RC);
 
   SX68_SetDIO2RFSwitch(&radio, 1);
-  SX68_SetIRQMask(&radio, 0x0002, 0x0000, 0x0000);
+  SX68_SetIRQMask(&radio, IRQ_RXDONE, 0x0000, 0x0000);
   SX68_SetDIOxGPIO(&radio, DIO1, dio1_gpio);
 
   SX68_SetOPType(&radio, TYPE_LoRa);
@@ -183,7 +183,7 @@ int main(void)
   memset(trans_timestamp, 0, 1024 * sizeof(uint32_t));
   memset(err_timestamp, 0, 1024 * sizeof(uint32_t));
 
-  SX68_BeginRX(&radio, 0xFFFFFFFF);
+  SX68_BeginRX(&radio, 0xFFFFFF);
 
   HAL_TIM_Base_Start(&htim3);
   HAL_TIM_Base_Start(&htim2);
@@ -198,6 +198,8 @@ int main(void)
 	{
 	  __NOP();
 	}
+
+      HAL_GPIO_TogglePin(R_LED_GPIO_Port, R_LED_Pin);
 
       uint32_t us_tick = Get_us_Tickval();
 
