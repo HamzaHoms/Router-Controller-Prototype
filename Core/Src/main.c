@@ -33,6 +33,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define PCKT_SIZE_U32 1
+#define PCKT_COUNT 1024
+#define U32_SIZE 4
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -162,7 +166,7 @@ int main(void)
   SX68_SetOPType(&radio, TYPE_LoRa);
   SX68_ConfigRF(&radio, 433000000, PA_DC_4, PA_HPmax_6);
   SX68_LoRa_ModConfig(&radio, LoRa_SF7, LoRa_BW_250, LoRa_CR_4_5);
-  SX68_SetBufferBase(&radio, 0, 128);
+  SX68_SetBufferBase(&radio, 0, 0);
   SX68_LoRa_Params(&radio, 8, LoRa_VariableLenHeader, LoRa_CRC_OFF, LoRa_IQ_Standard);
   SX68_SetTXParameters(&radio, 0, RAMP_200U);
 
@@ -170,18 +174,19 @@ int main(void)
 
   wUART_OpenRXDMA(&wuart3);
 
-  uint8_t num_buf[64];
-  uint8_t pckt_cnt = 0;
+  uint8_t num_buf[PCKT_SIZE_U32 * U32_SIZE];
   uint32_t num = 0;
   uint32_t num_rec;
   uint32_t errs = 0;
-  static uint32_t trans_timestamp[1024];
-  static uint32_t err_timestamp[1024];
+  static uint32_t trans_timestamp[PCKT_COUNT];
+  static uint32_t err_timestamp[PCKT_COUNT];
   uint32_t in_trans = 0;
   uint32_t in_err = 0;
 
-  memset(trans_timestamp, 0, 1024 * sizeof(uint32_t));
-  memset(err_timestamp, 0, 1024 * sizeof(uint32_t));
+  uint32_t dummy;
+
+  memset(trans_timestamp, 0, PCKT_COUNT * U32_SIZE);
+  memset(err_timestamp, 0, PCKT_COUNT * U32_SIZE);
 
   SX68_BeginRX(&radio, 0xFFFFFF);
 
@@ -194,9 +199,17 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      while(SX68_GetDIOStatus(&radio, DIO1) != 1)
+      while(SX68_GetDIOStatus(&radio, DIO1) != 1 && FIFO_GetCount(&wuart3._rx_fifo) < U32_SIZE)
 	{
 	  __NOP();
+	}
+
+      if(FIFO_GetCount(&wuart3._rx_fifo) >= U32_SIZE)
+	{
+	  wUART_ReadRXFIFO(&wuart3, num_buf, U32_SIZE);
+	  memcpy(&dummy, num_buf, U32_SIZE);
+	  if(dummy == 0xFFFFFFFF) break;
+	  else continue;
 	}
 
       HAL_GPIO_TogglePin(R_LED_GPIO_Port, R_LED_Pin);
@@ -208,17 +221,15 @@ int main(void)
 
       SX68_ReadRXPacket(&radio);
 
-      while(SX68_GetPacket(&radio, num_buf, 64) == SX1268_BUSY)
+      while(SX68_GetPacket(&radio, num_buf, PCKT_SIZE_U32 * U32_SIZE) == SX1268_BUSY)
 	{
 	  __NOP();
 	}
 
 
-      wUART_WriteTX(&wuart3, num_buf, radio.DATA._rx_pckt_size);
+      wUART_WriteTX(&wuart3, num_buf, PCKT_SIZE_U32 * U32_SIZE);
 
-      memcpy(&num_rec, num_buf, 4);
-
-      if(num_rec == 0xFFFFFFFF) break;
+      memcpy(&num_rec, num_buf, U32_SIZE);
 
       if(num_rec != num)
 	{
@@ -230,22 +241,22 @@ int main(void)
       num = num_rec + 1;
       trans_timestamp[in_trans] = us_tick;
       in_trans++;
-      if(in_trans == 1024) break;
+      if(in_trans == PCKT_COUNT) break;
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
 
-  wUART_WriteTX(&wuart3, (uint8_t*)&errs, 4);
+  wUART_WriteTX(&wuart3, (uint8_t*)&errs, U32_SIZE);
 
-  for(int i = 0; i < 16; i++)
+  for(int i = 0; i < (PCKT_COUNT * U32_SIZE) / 256; i++)
     {
       wUART_WriteTX(&wuart3, (uint8_t*)trans_timestamp + i*256, 256);
       HAL_Delay(250);
     }
 
-  for(int i = 0; i < 16; i++)
+  for(int i = 0; i < (PCKT_COUNT * U32_SIZE) / 256; i++)
     {
       wUART_WriteTX(&wuart3, (uint8_t*)err_timestamp + i*256, 256);
       HAL_Delay(250);
@@ -348,7 +359,7 @@ static void MX_SPI2_Init(void)
   hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi2.Init.NSS = SPI_NSS_SOFT;
-  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_128;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -470,7 +481,7 @@ static void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
+  huart3.Init.BaudRate = 500000;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
